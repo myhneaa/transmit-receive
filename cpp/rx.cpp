@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
 #ifdef _WIN32
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
-        std::cerr << "[RX] WSAStartup failed\n";
+        std::cerr << "[RX-CPP] WSAStartup failed\n";
         return 1;
     }
 #endif
@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
     // ── Create UDP socket ─────────────────────────────────────────────────────
     SOCKET sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock == INVALID_SOCKET) {
-        std::cerr << "[RX] ERROR: Could not create socket\n";
+        std::cerr << "[RX-CPP] ERROR: Could not create socket\n";
         return 1;
     }
 
@@ -109,12 +109,12 @@ int main(int argc, char* argv[]) {
     addr.sin_addr.s_addr = INADDR_ANY;   // listen on all interfaces
 
     if (bind(sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
-        std::cerr << "[RX] ERROR: bind() failed on port " << port << "\n";
+        std::cerr << "[RX-CPP] ERROR: bind() failed on port " << port << "\n";
         closesocket(sock);
         return 1;
     }
 
-    std::cout << "[RX] Listening on UDP port " << port << " ...\n";
+    std::cout << "[RX-CPP] Listening on UDP port " << port << " ...\n";
     std::cout << std::string(60, '-') << "\n";
 
     // ── State variables ───────────────────────────────────────────────────────
@@ -136,12 +136,12 @@ int main(int argc, char* argv[]) {
         ssize_t n = recvfrom(sock, (char*)buf.data(), buf.size(), 0,
                              (sockaddr*)&sender, &sender_len);
         if (n < 0) {
-            std::cerr << "[RX] ERROR: recvfrom() failed\n";
+            std::cerr << "[RX-CPP] ERROR: recvfrom() failed\n";
             break;
         }
 
         if ((size_t)n < HEADER_SIZE) {
-            std::cerr << "[RX] WARNING: Packet too small, ignoring\n";
+            std::cerr << "[RX-CPP] WARNING: Packet too small, ignoring\n";
             continue;
         }
 
@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
         // ── FIRST PACKET (SeqNr = 0) ──────────────────────────────────────────
         if (seq_nr == 0) {
             if (payload_size < 4) {
-                std::cerr << "[RX] ERROR: First packet too small\n";
+                std::cerr << "[RX-CPP] ERROR: First packet too small\n";
                 continue;
             }
             trans_id  = pkt_trans_id;
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
                             payload_size - 4
                         );
             got_first = true;
-            std::cout << "[RX] FIRST packet | TransID=" << trans_id
+            std::cout << "[RX-CPP] FIRST packet | TransID=" << trans_id
                       << " | MaxSeq=" << max_seq
                       << " | File='" << filename << "'\n";
             continue;
@@ -174,14 +174,14 @@ int main(int argc, char* argv[]) {
         if (got_first && seq_nr == max_seq + 1 && payload_size == MD5_SIZE) {
             received_md5.assign(payload, payload + MD5_SIZE);
             got_last = true;
-            std::cout << "[RX] LAST  packet | MD5=" << hex(received_md5) << "\n";
+            std::cout << "[RX-CPP] LAST  packet | MD5=" << hex(received_md5) << "\n";
             continue;
         }
 
         // ── DATA PACKET ───────────────────────────────────────────────────────
         if (seq_nr >= 1) {
             packets[seq_nr] = std::vector<uint8_t>(payload, payload + payload_size);
-            std::cout << "[RX] DATA  packet | SeqNr=" << seq_nr
+            std::cout << "[RX-CPP] DATA  packet | SeqNr=" << seq_nr
                       << "/" << max_seq
                       << " | " << payload_size << " bytes\n";
         }
@@ -191,18 +191,18 @@ int main(int argc, char* argv[]) {
 
     // ── Reassemble file ───────────────────────────────────────────────────────
     if (!got_first || !got_last) {
-        std::cerr << "[RX] ERROR: Incomplete transmission\n";
+        std::cerr << "[RX-CPP] ERROR: Incomplete transmission\n";
         return 1;
     }
 
     std::cout << std::string(60, '-') << "\n";
-    std::cout << "[RX] Reassembling " << packets.size() << " chunks...\n";
+    std::cout << "[RX-CPP] Reassembling " << packets.size() << " chunks...\n";
 
     std::vector<uint8_t> file_data;
     for (uint32_t i = 1; i <= max_seq; ++i) {
         auto it = packets.find(i);
         if (it == packets.end()) {
-            std::cerr << "[RX] WARNING: Missing chunk SeqNr=" << i << "\n";
+            std::cerr << "[RX-CPP] WARNING: Missing chunk SeqNr=" << i << "\n";
         } else {
             file_data.insert(file_data.end(), it->second.begin(), it->second.end());
         }
@@ -210,17 +210,17 @@ int main(int argc, char* argv[]) {
 
     // ── Verify MD5 ────────────────────────────────────────────────────────────
     auto computed_md5 = compute_md5(file_data);
-    std::cout << "[RX] Computed MD5 : " << hex(computed_md5) << "\n";
-    std::cout << "[RX] Received MD5 : " << hex(received_md5) << "\n";
+    std::cout << "[RX-CPP] Computed MD5 : " << hex(computed_md5) << "\n";
+    std::cout << "[RX-CPP] Received MD5 : " << hex(received_md5) << "\n";
 
     if (computed_md5 == received_md5) {
         std::string outfile = "received_" + filename;
         std::ofstream ofs(outfile, std::ios::binary);
         ofs.write((char*)file_data.data(), file_data.size());
         ofs.close();
-        std::cout << "[RX] ✅ MD5 OK! File saved as '" << outfile << "'\n";
+        std::cout << "[RX-CPP] MD5 OK! File saved as '" << outfile << "'\n";
     } else {
-        std::cerr << "[RX] ❌ MD5 MISMATCH! File may be corrupted.\n";
+        std::cerr << "[RX-CPP] MD5 MISMATCH! File may be corrupted.\n";
         return 1;
     }
 

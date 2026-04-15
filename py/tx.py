@@ -60,7 +60,7 @@ def build_last_packet(trans_id: int, seq_nr: int, md5_digest: bytes) -> bytes:
 def send_file(filepath: str, host: str, port: int):
     # ── Validate file ─────────────────────────────────────────────────────────
     if not os.path.isfile(filepath):
-        print(f"[TX] ERROR: File not found: {filepath}")
+        print(f"[TX-PY] ERROR: File not found: {filepath}")
         sys.exit(1)
 
     filename = os.path.basename(filepath)
@@ -81,30 +81,30 @@ def send_file(filepath: str, host: str, port: int):
     # ── Setup UDP socket ──────────────────────────────────────────────────────
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    print(f"[TX] Sending '{filename}' ({len(file_data)} bytes) to {host}:{port}")
-    print(f"[TX] TransmissionID={trans_id}, Chunks={max_seq}, MD5={md5_digest.hex()}")
+    print(f"[TX-PY] Sending '{filename}' ({len(file_data)} bytes) to {host}:{port}")
+    print(f"[TX-PY] TransmissionID={trans_id}, Chunks={max_seq}, MD5={md5_digest.hex()}")
     print("-" * 60)
 
     # ── 1. Send FIRST packet (SeqNr = 0) ─────────────────────────────────────
     pkt = build_first_packet(trans_id, max_seq, filename)
     sock.sendto(pkt, (host, port))
-    print(f"[TX] FIRST packet sent  | SeqNr=0 | MaxSeq={max_seq} | File='{filename}'")
+    print(f"[TX-PY] FIRST packet sent  | SeqNr=0 | MaxSeq={max_seq} | File='{filename}'")
 
     # ── 2. Send DATA packets (SeqNr = 1 .. max_seq) ───────────────────────────
     for i, chunk in enumerate(chunks):
         seq_nr = i + 1
         pkt = build_data_packet(trans_id, seq_nr, chunk)
         sock.sendto(pkt, (host, port))
-        print(f"[TX] DATA  packet sent  | SeqNr={seq_nr}/{max_seq} | {len(chunk)} bytes")
+        print(f"[TX-PY] DATA  packet sent  | SeqNr={seq_nr}/{max_seq} | {len(chunk)} bytes")
         time.sleep(0.001)   # tiny delay – avoids overwhelming the receiver
 
     # ── 3. Send LAST packet ────────────────────────────────────────────────────
     last_seq = max_seq + 1
     pkt = build_last_packet(trans_id, last_seq, md5_digest)
     sock.sendto(pkt, (host, port))
-    print(f"[TX] LAST  packet sent  | SeqNr={last_seq} | MD5={md5_digest.hex()}")
+    print(f"[TX-PY] LAST  packet sent  | SeqNr={last_seq} | MD5={md5_digest.hex()}")
     print("-" * 60)
-    print("[TX] Transmission complete.")
+    print("[TX-PY] Transmission complete.")
 
     sock.close()
 
