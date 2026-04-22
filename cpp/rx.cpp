@@ -1,9 +1,9 @@
 /*
  * Compile (Linux/macOS):
- *   g++ -std=c++17 -o rx rx.cpp -lssl -lcrypto
+ *   g++ -o rx rx.cpp -lssl -lcrypto
  *
  * Compile (Windows with MinGW):
- *   g++ -std=c++17 -o rx.exe rx.cpp -lws2_32 -lssl -lcrypto
+ *   g++ -o rx.exe rx.cpp -lws2_32 -lssl -lcrypto
  *
  * Usage:
  *   ./rx [port]

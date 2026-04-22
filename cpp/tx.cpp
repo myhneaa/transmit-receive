@@ -1,9 +1,9 @@
 /*
  * Compile (Linux/macOS):
- *   g++ -std=c++17 -o tx tx.cpp -lssl -lcrypto
+ *   g++ -o tx tx.cpp -lssl -lcrypto
  *
  * Compile (Windows with MinGW):
- *   g++ -std=c++17 -o tx.exe tx.cpp -lws2_32 -lssl -lcrypto
+ *   g++ -o tx.exe tx.cpp -lws2_32 -lssl -lcrypto
  *
  * Usage:
  *   ./tx <filepath | filename> [destination_ip] [port]
