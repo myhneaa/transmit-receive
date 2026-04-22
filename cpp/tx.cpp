@@ -1,16 +1,12 @@
 /*
- * NVS26 - UDP File Transmitter (TX)
- * Language: C++17
- * Transmits a file via UDP according to the project specification.
- *
  * Compile (Linux/macOS):
- * g++ -std=c++17 -o tx tx.cpp -lssl -lcrypto
+ *   g++ -std=c++17 -o tx tx.cpp -lssl -lcrypto
  *
  * Compile (Windows with MinGW):
- * g++ -std=c++17 -o tx.exe tx.cpp -lws2_32 -lssl -lcrypto
+ *   g++ -std=c++17 -o tx.exe tx.cpp -lws2_32 -lssl -lcrypto
  *
  * Usage:
- * ./tx <filepath> [destination_ip] [port]
+ *   ./tx <filepath | filename> [destination_ip] [port]
  *
  * Requires: OpenSSL (for MD5)
  * Linux:   sudo apt install libssl-dev
@@ -26,7 +22,7 @@
 #include <chrono>
 #include <random>
 
-// ── Platform-specific network headers ────────────────────────────────────────
+// platform-specific network headers
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
@@ -40,19 +36,17 @@
     #define closesocket    close
 #endif
 
-// ── OpenSSL MD5 ───────────────────────────────────────────────────────────────
 #include <openssl/md5.h>
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 constexpr size_t CHUNK_SIZE = 1400;
 
-// ─── Helper: write big-endian uint16 to buffer ───────────────────────────────
+// writes big-endian uint16 to buffer
 void write_u16(std::vector<uint8_t>& buf, uint16_t val) {
     buf.push_back((val >> 8) & 0xFF);
     buf.push_back(val & 0xFF);
 }
 
-// ─── Helper: write big-endian uint32 to buffer ───────────────────────────────
+// writes big-endian uint32 to buffer
 void write_u32(std::vector<uint8_t>& buf, uint32_t val) {
     buf.push_back((val >> 24) & 0xFF);
     buf.push_back((val >> 16) & 0xFF);
@@ -60,7 +54,6 @@ void write_u32(std::vector<uint8_t>& buf, uint32_t val) {
     buf.push_back(val & 0xFF);
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: ./tx <filepath> [destination_ip] [port]\n";
@@ -71,7 +64,7 @@ int main(int argc, char* argv[]) {
     std::string host = (argc > 2) ? argv[2] : "127.0.0.1";
     int port = (argc > 3) ? std::stoi(argv[3]) : 5005;
 
-    // ── Validate file & prepare chunks ────────────────────────────────────────
+    // validate filename & prepare chunks
     std::string filename = filepath;
     size_t pos = filename.find_last_of("/\\");
     if (pos != std::string::npos) filename = filename.substr(pos + 1);
@@ -91,23 +84,23 @@ int main(int argc, char* argv[]) {
 
     uint32_t max_seq = (size + CHUNK_SIZE - 1) / CHUNK_SIZE;
 
-    // ── Compute MD5 of entire file ────────────────────────────────────────────
+    // compute MD5
     std::vector<uint8_t> md5_digest(16);
     MD5(file_data.data(), file_data.size(), md5_digest.data());
 
-    // ── Random TransmissionID (16 bit → 0..65535) ─────────────────────────────
+    // random TransmissionID (16 bit - 0..65535)
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<uint16_t> dis(1, 65535);
     uint16_t trans_id = dis(gen);
 
-// ── Windows socket init ───────────────────────────────────────────────────────
+// Windows socket
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2,2), &wsa);
 #endif
 
-    // ── Setup UDP socket ──────────────────────────────────────────────────────
+    // setup UDP socket
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     sockaddr_in dest{};
     dest.sin_family = AF_INET;
@@ -117,7 +110,7 @@ int main(int argc, char* argv[]) {
     std::cout << "[TX-CPP] Sending '" << filename << "' (" << size << " bytes) to " << host << ":" << port << "\n";
     std::cout << std::string(60, '-') << "\n";
 
-    // ── 1. Send FIRST packet (SeqNr = 0) ─────────────────────────────────────
+    // FIRST PACKET (SeqNr = 0)
     std::vector<uint8_t> pkt0;
     write_u16(pkt0, trans_id);
     write_u32(pkt0, 0);
@@ -127,7 +120,7 @@ int main(int argc, char* argv[]) {
     sendto(sock, (char*)pkt0.data(), pkt0.size(), 0, (sockaddr*)&dest, sizeof(dest));
     std::cout << "[TX-CPP] INIT packet sent | MaxSeq=" << max_seq << " | File='" << filename << "'\n";
 
-    // ── 2. Send DATA packets (SeqNr = 1 .. max_seq) ───────────────────────────
+    // DATA PACKETS (SeqNr = 1 .. max_seq)
     size_t offset = 0;
     for (uint32_t seq = 1; seq <= max_seq; ++seq) {
         std::vector<uint8_t> pdata;
@@ -144,7 +137,7 @@ int main(int argc, char* argv[]) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    // ── 3. Send LAST packet ────────────────────────────────────────────────────
+    // LAST PACKET
     std::vector<uint8_t> pkt_last;
     write_u16(pkt_last, trans_id);
     write_u32(pkt_last, max_seq + 1);

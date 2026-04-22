@@ -1,8 +1,4 @@
 /*
- * NVS26 - UDP File Receiver (RX)
- * Language: C++17
- * Receives a file sent by the Python TX program via UDP.
- *
  * Compile (Linux/macOS):
  *   g++ -std=c++17 -o rx rx.cpp -lssl -lcrypto
  *
@@ -28,7 +24,7 @@
 #include <iomanip>
 #include <sstream>
 
-// ── Platform-specific network headers ────────────────────────────────────────
+// platform-specific network headers
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
@@ -44,21 +40,19 @@
     typedef int SOCKET;
 #endif
 
-// ── OpenSSL MD5 ───────────────────────────────────────────────────────────────
 #include <openssl/md5.h>
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 constexpr int    DEFAULT_PORT    = 5005;
 constexpr size_t MAX_PACKET_SIZE = 65535;
 constexpr size_t HEADER_SIZE     = 6;     // TransmissionID(2) + SeqNr(4)
 constexpr size_t MD5_SIZE        = 16;    // 128 bit
 
-// ─── Helper: read big-endian uint16 from buffer ───────────────────────────────
+// reads big-endian uint16 from buffer
 uint16_t read_u16(const uint8_t* buf) {
     return (uint16_t(buf[0]) << 8) | buf[1];
 }
 
-// ─── Helper: read big-endian uint32 from buffer ───────────────────────────────
+// reads big-endian uint32 from buffer
 uint32_t read_u32(const uint8_t* buf) {
     return (uint32_t(buf[0]) << 24) |
            (uint32_t(buf[1]) << 16) |
@@ -66,14 +60,14 @@ uint32_t read_u32(const uint8_t* buf) {
             uint32_t(buf[3]);
 }
 
-// ─── Helper: compute MD5 of a byte vector ────────────────────────────────────
+// computes MD5 of a byte vector
 std::vector<uint8_t> compute_md5(const std::vector<uint8_t>& data) {
     std::vector<uint8_t> digest(MD5_SIZE);
     MD5(data.data(), data.size(), digest.data());
     return digest;
 }
 
-// ─── Helper: hex string from bytes ───────────────────────────────────────────
+// hex string from bytes
 std::string hex(const std::vector<uint8_t>& bytes) {
     std::ostringstream ss;
     for (auto b : bytes)
@@ -81,12 +75,12 @@ std::string hex(const std::vector<uint8_t>& bytes) {
     return ss.str();
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 int main(int argc, char* argv[]) {
 
     int port = (argc > 1) ? std::stoi(argv[1]) : DEFAULT_PORT;
 
-// ── Windows socket init ───────────────────────────────────────────────────────
+// Windows socket
+
 #ifdef _WIN32
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
@@ -95,14 +89,14 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
-    // ── Create UDP socket ─────────────────────────────────────────────────────
+    // creating UDP socket
     SOCKET sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock == INVALID_SOCKET) {
         std::cerr << "[RX-CPP] ERROR: Could not create socket\n";
         return 1;
     }
 
-    // ── Bind to port ──────────────────────────────────────────────────────────
+    // binding to port
     sockaddr_in addr{};
     addr.sin_family      = AF_INET;
     addr.sin_port        = htons(port);
@@ -117,8 +111,8 @@ int main(int argc, char* argv[]) {
     std::cout << "[RX-CPP] Listening on UDP port " << port << " ...\n";
     std::cout << std::string(60, '-') << "\n";
 
-    // ── State variables ───────────────────────────────────────────────────────
-    std::map<uint32_t, std::vector<uint8_t>> packets;  // SeqNr → chunk data
+    // state variables
+    std::map<uint32_t, std::vector<uint8_t>> packets;  // SeqNr - chunk data
     std::string  filename;
     uint32_t     max_seq   = 0;
     uint16_t     trans_id  = 0;
@@ -126,7 +120,7 @@ int main(int argc, char* argv[]) {
     bool         got_last  = false;
     std::vector<uint8_t> received_md5;
 
-    // ── Receive loop ──────────────────────────────────────────────────────────
+    // receive loop
     std::vector<uint8_t> buf(MAX_PACKET_SIZE);
 
     while (!got_last) {
@@ -145,13 +139,13 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        // ── Parse common header ───────────────────────────────────────────────
+        // parsing common header
         uint16_t pkt_trans_id = read_u16(buf.data());
         uint32_t seq_nr       = read_u32(buf.data() + 2);
         size_t   payload_size = (size_t)n - HEADER_SIZE;
         uint8_t* payload      = buf.data() + HEADER_SIZE;
 
-        // ── FIRST PACKET (SeqNr = 0) ──────────────────────────────────────────
+        // FIRST PACKET (SeqNr = 0)
         if (seq_nr == 0) {
             if (payload_size < 4) {
                 std::cerr << "[RX-CPP] ERROR: First packet too small\n";
@@ -170,7 +164,7 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        // ── LAST PACKET: SeqNr = max_seq + 1, payload = 16 bytes MD5 ──────────
+        // LAST PACKET: SeqNr = max_seq + 1, payload = 16 bytes MD5
         if (got_first && seq_nr == max_seq + 1 && payload_size == MD5_SIZE) {
             received_md5.assign(payload, payload + MD5_SIZE);
             got_last = true;
@@ -178,7 +172,7 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        // ── DATA PACKET ───────────────────────────────────────────────────────
+        // DATA PACKET
         if (seq_nr >= 1) {
             packets[seq_nr] = std::vector<uint8_t>(payload, payload + payload_size);
             std::cout << "[RX-CPP] DATA  packet | SeqNr=" << seq_nr
@@ -189,7 +183,7 @@ int main(int argc, char* argv[]) {
 
     closesocket(sock);
 
-    // ── Reassemble file ───────────────────────────────────────────────────────
+    // reassemble file
     if (!got_first || !got_last) {
         std::cerr << "[RX-CPP] ERROR: Incomplete transmission\n";
         return 1;
@@ -208,7 +202,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // ── Verify MD5 ────────────────────────────────────────────────────────────
+    // verifying MD5
     auto computed_md5 = compute_md5(file_data);
     std::cout << "[RX-CPP] Computed MD5 : " << hex(computed_md5) << "\n";
     std::cout << "[RX-CPP] Received MD5 : " << hex(received_md5) << "\n";
